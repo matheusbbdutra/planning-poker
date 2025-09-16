@@ -1,0 +1,43 @@
+services:
+  api:
+    container_name: api_container_planning_poker_prod
+    build:
+      context: .
+      dockerfile: .docker/Dockerfile.Api.Prod
+    ports:
+      - "8080:8080"
+    networks:
+      - planning_poker_network
+    restart: always
+    depends_on:
+      - redis
+    environment:
+      - REDIS_ADDR=redis:6379
+
+  nuxt_app:
+    container_name: nuxt_app_planning_poker_prod
+    build:
+      context: .
+      dockerfile: .docker/Dockerfile.Frontend.Prod
+    ports:
+      - "3000:3000"
+    restart: always
+    networks:
+      - planning_poker_network
+    depends_on:
+      - redis
+
+  redis:
+    container_name: redis_db_prod
+    image: "redis:alpine"
+    volumes:
+      - ./redis-data-prod:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - planning_poker_network
+    restart: always
+
+networks:
+  planning_poker_network:
+    driver: bridge

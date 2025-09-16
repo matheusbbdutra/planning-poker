@@ -1,0 +1,46 @@
+services:
+  api:
+    container_name: api_container_planning_poker
+    build:
+      context: .
+      dockerfile: .docker/Dockerfile.Api.Dev
+    ports:
+      - "8081:8080"
+    networks:
+      - planning_poker_network
+    restart: always
+    volumes:
+      - ./api:/app
+      - ./api/.air.toml:/app/.air.toml
+    depends_on:
+      - redis
+    environment:
+      - REDIS_ADDR=redis:6379
+
+  nuxt_app:
+    container_name: nuxt_app_planning_poker
+    build:
+      context: .
+      dockerfile: .docker/Dockerfile.Frontend.Prod
+    ports:
+      - "3001:3000" # Mapeia a porta da VPS para o contêiner
+    restart: always
+    networks:
+      - planning_poker_network
+    depends_on:
+      - redis
+
+  redis:
+    container_name: redis_db
+    image: "redis:alpine"
+    volumes:
+      - ./redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - planning_poker_network
+    restart: always
+
+networks:
+  planning_poker_network:
+    driver: bridge
