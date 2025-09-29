@@ -1,4 +1,4 @@
-package http_handler
+package handler
 
 import (
 	"encoding/json"
@@ -8,26 +8,25 @@ import (
 	"planning-poker/internal/infrastructure/persistence"
 	"planning-poker/internal/ports/repository"
 
-	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
-type HttpRoomHandler struct {
+type RoomHandler struct {
 	RedisRepository repository.RedisRepository
 }
 
 type NewRoomRequest struct {
-	UserName    string `json:"user_name"`
-	SessionName string `json:"session_name"`
+	UserName    string `json:"userName"`
+	SessionName string `json:"sessionName"`
 }
 
-func NewRoomHandler(redisClient *redis.Client) *HttpRoomHandler {
-	return &HttpRoomHandler{
+func NewRoomHandler(redisClient *redis.Client) *RoomHandler {
+	return &RoomHandler{
 		RedisRepository: persistence.NewRedisRepositoryImpl(redisClient),
 	}
 }
 
-func (h *HttpRoomHandler) NewRoom(w http.ResponseWriter, r *http.Request) error {
+func (h *RoomHandler) NewRoom(w http.ResponseWriter, r *http.Request) error {
 	var req NewRoomRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
@@ -35,15 +34,11 @@ func (h *HttpRoomHandler) NewRoom(w http.ResponseWriter, r *http.Request) error 
 	}
 	log.Printf("%v", req)
 
-	room := entities.Room{
-		ID:   uuid.New(),
-		Name: req.SessionName,
-		Participants: []entities.Participant{
-			*entities.NewParticipant(req.UserName, true),
-		},
-	}
+	room := entities.NewRoom(req.SessionName)
+	participant := entities.NewParticipant(req.UserName, true)
+	room.AddParticipant(*participant)
 
-	err := h.RedisRepository.CreateRoom(r.Context(), room)
+	err := h.RedisRepository.CreateRoom(r.Context(), *room)
 	if err != nil {
 		http.Error(w, "Failed to create room", http.StatusInternalServerError)
 		return err
@@ -53,6 +48,6 @@ func (h *HttpRoomHandler) NewRoom(w http.ResponseWriter, r *http.Request) error 
 
 	w.WriteHeader(http.StatusCreated)
 
-	response := map[string]interface{}{"room": room}
+	response := map[string]interface{}{"room": room, "participant": participant} // O frontend espera o objeto room
 	return json.NewEncoder(w).Encode(response)
 }

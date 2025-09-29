@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	http_handler "planning-poker/internal/http"
+	"planning-poker/internal/http/handler"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -26,14 +26,14 @@ func NewServer() *Server {
 	}
 }
 
-func (s *Server) Start(roomHandler *http_handler.HttpRoomHandler) {
-	r := initRoutes(roomHandler)
+func (s *Server) Start(roomHandler *handler.RoomHandler, wsHandler *handler.HttpWsHandler) {
+	r := initRoutes(roomHandler, wsHandler)
 	srv := &http.Server{
 		Addr:    ":8080",
 		Handler: r,
 	}
 
-	go func () {
+	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("WebSocket server failed: %v", err)
 		}
@@ -50,11 +50,10 @@ func (s *Server) Start(roomHandler *http_handler.HttpRoomHandler) {
 	log.Println("server exiting")
 }
 
-
-func initRoutes(roomHandler *http_handler.HttpRoomHandler) *chi.Mux {
+func initRoutes(roomHandler *handler.RoomHandler, wsHandler *handler.HttpWsHandler) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
-  	r.Use(middleware.Recoverer)
+	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "PUT", "POST", "DELETE", "HEAD", "OPTIONS"},
@@ -64,7 +63,6 @@ func initRoutes(roomHandler *http_handler.HttpRoomHandler) *chi.Mux {
 		MaxAge:           300,
 	}))
 
-
 	r.Route("/v1", func(r chi.Router) {
 		r.Route("/room", func(r chi.Router) {
 			r.Post("/", func(w http.ResponseWriter, r *http.Request) {
@@ -73,20 +71,21 @@ func initRoutes(roomHandler *http_handler.HttpRoomHandler) *chi.Mux {
 				}
 			})
 		})
+		r.Get("/room/ws/{roomId}/{userId}", wsHandler.HandleWebSocket)
 	})
 	return r
 }
 
 func (s *Server) InitRedis() error {
 	addr := os.Getenv("REDIS_ADDR")
-    if addr == "" {
-        addr =  "localhost:6379"
-    }
-    redisClient := redis.NewClient(&redis.Options{
-        Addr:     addr,
-        Password: "", 
-        DB:       0, 
-    })
+	if addr == "" {
+		addr = "localhost:6379"
+	}
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     addr,
+		Password: "",
+		DB:       0,
+	})
 
 	_, err := redisClient.Ping(context.Background()).Result()
 	if err != nil {
@@ -95,5 +94,5 @@ func (s *Server) InitRedis() error {
 	log.Printf("Connected to Redis successfully")
 
 	s.redis = redisClient
-    return nil
+	return nil
 }

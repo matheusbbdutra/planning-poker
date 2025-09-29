@@ -35,25 +35,28 @@ onMounted(() => {
 
 const router = useRouter();
 
-const handleNewSession = (sessionName: string, userName: string) => {
-  fetch("/api/room/create", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ sessionName, userName }),
-  })
-    .then((response) => response.json())
-    .then((data) => {
-      const room = data.room;
-      sessionStorage.setItem("roomId", room.id);
-      sessionStorage.setItem("userId", room.participants[0].id);
-      router.push(`/room/${room.id}`);
-    })
-    .catch((error) => {
-      console.error("Erro ao criar a sala:", error);
-    });
+const handleNewSession = async (sessionName: string, userName: string) => {
+  const { data, error } = await useApi('/room', {
+      method: 'POST',
+      body: { sessionName, userName },
+  });
 
+  if (error.value) {
+    console.error("Erro ao criar a sala:", error.value);
+    return;
+  }
+
+  const room = data.value.room;
+  const roomId = room?.id ?? room?.ID;
+  const userId = room?.participants?.[0]?.id ?? room?.Participants?.[0]?.ID;
+
+  if (!roomId || !userId) {
+    console.error("Resposta inesperada ao criar sala:", room);
+    return;
+  }
+
+  sessionStorage.setItem("userId", userId)
+  router.push(`/room/${room.id}`);
 };
 
 const handleJoinRoom = (userName: string) => {

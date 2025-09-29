@@ -3,12 +3,12 @@ package entities
 import "github.com/google/uuid"
 
 type Room struct {
-	ID          uuid.UUID
-	Name        string
-	Participants []Participant
-	Tasks       []Task
-	NumberOfTaskCompleted int
-	NumberOfCards []int
+	ID          uuid.UUID `json:"id"`
+	Name        string     `json:"name"`
+	Participants []Participant `json:"participants"`
+	Tasks       []Task       `json:"tasks"`
+	NumberOfTaskCompleted int `json:"numberOfTaskCompleted"`
+	NumberOfCards []int     `json:"numberOfCards"`
 }
 
 func NewRoom(name string) *Room {

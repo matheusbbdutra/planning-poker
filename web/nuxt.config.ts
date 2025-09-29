@@ -11,19 +11,10 @@ export default defineNuxtConfig({
           tailwindcss(),
       ],
     },
-    nitro: {
-        storage: {
-            redis: {
-                driver: 'redis',
-                host: '127.0.0.1',
-                port: 6379,
-            }
-        },
-    },
     runtimeConfig: {
-        redis: {
-            host: '127.0.0.1',
-            port: 6379
-        }
+      public: {
+        apiBase: process.env.API_URL || 'http://localhost:8080/v1'
+      }
     }
+    
 })

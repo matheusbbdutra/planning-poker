@@ -1,2 +1,4 @@
 /.idea/*
 redis-data/*
+.env
+.vscode/*
