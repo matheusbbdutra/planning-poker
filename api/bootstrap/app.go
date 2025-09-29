@@ -31,6 +31,6 @@ func (a *App) Start() {
 }
 
 func (a *App) initHandlers() {
-	a.RoomHandler = handler.NewRoomHandler(a.Server.redis)
+	a.RoomHandler = handler.NewRoomHandler(a.Server.redis, a.WsHub)
 	a.WsHandler = handler.NewWsHandler(a.WsHub, a.Server.redis)
 }

@@ -1,13 +1,14 @@
 import { ref, watch } from 'vue'
 import { useWebSocket } from '@vueuse/core'
+import type { Participant, Task, Room } from '~/types/entities'
 
-interface Message {
+interface Message<T = any> {
   type: string
-  payload: any
+  payload: T
 }
 
 export function useRoomSocket(roomId: string, userId: string) {
-    const roomState = ref<any>({})
+    const roomState = ref<Room | null>(null)
     const isConnected = ref(false)
 
     const config = useRuntimeConfig();
@@ -23,7 +24,7 @@ export function useRoomSocket(roomId: string, userId: string) {
     watch(data, (newMessage) => {
         if (typeof newMessage === 'string') {
           try {
-            const parsedMessage: Message = JSON.parse(newMessage)
+            const parsedMessage: Message = JSON.parse(newMessage) as Room
     
             // Usamos um switch para lidar com diferentes tipos de mensagens do servidor
             switch (parsedMessage.type) {
@@ -34,13 +35,7 @@ export function useRoomSocket(roomId: string, userId: string) {
               case 'ROOM_STATE_UPDATED':
                 roomState.value = parsedMessage.payload
                 break
-              
-              case 'USER_JOINED':
-                // Aqui você poderia adicionar um novo participante à lista existente
-                console.log('Novo participante:', parsedMessage.payload);
-                break
-    
-              // Adicione outros 'case' para outras mensagens do servidor aqui
+            
             }
           } catch (error) {
             console.error('Erro ao processar mensagem do WebSocket:', error)

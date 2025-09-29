@@ -12,7 +12,7 @@
 
         <input
             id="room-id"
-            :value="roomId"
+            v-model="roomId"
             type="text"
             placeholder="Informe o ID da sala"
             class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
@@ -60,6 +60,6 @@ const emit = defineEmits(['join-room']);
 const handleJoinRoom = () => {
   if (!isFormValid.value) return;
 
-  emit('join-room', userName.value.trim());
+  emit('join-room', {roomId: roomId.value.trim(), userName: userName.value.trim()});
 };
 </script>

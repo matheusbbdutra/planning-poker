@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import ModalAdicionarTarefa from '@/components/ui/modal/ModalAdicionarTarefa.vue';
 import ModalCadastrarCards from '@/components/ui/modal/ModalCadastrarCards.vue';
 import ModalCadastrarParticipante from '@/components/ui/modal/ModalCadastrarParticpante.vue';
+import { Room, Task, Participant, votingStatus } from '~/types/entities';
 
 const showAdicionarTarefa = ref(false);
 const showModalCartas = ref(false);
@@ -13,8 +14,15 @@ const route = useRoute();
 const router = useRouter();
 const name = ref("Sala de Planejamento - Planning Poker");
 let roomSocket: ReturnType<typeof useRoomSocket> | null = null;
+const votingCards = ref<Array<string | number>>([]);
+const tasks = ref<Task[]>([]);
+const participants = ref<Participant[]>([]);
+const myVote = ref<string | number | null>(null);
+const isScrumMaster = ref(false);
+const votingTask = ref<Task | null>(null);
 
 onMounted(async () => {
+  isScrumMaster.value = sessionStorage.getItem('isScrumMaster') === 'true';
   document.title = name.value;
   userId.value = sessionStorage.getItem('userId');
   if (!userId.value) {
@@ -36,15 +44,19 @@ onMounted(async () => {
   if (roomId.value && userId.value) {
     roomSocket = useRoomSocket(roomId.value, userId.value);
     console.log("Connecting to room socket with roomId:", roomId.value, "and userId:", userId.value);
-    roomSocket.connect();
 
-    watch(roomSocket.roomState, (newState) => {
+    watch(roomSocket.roomState, (newState: Room) => {
       console.log("Room state updated:", newState);
-        participants.value = newState.participants || [];
+        participants.value = newState.participants.filter(p => p.isConnected === true) || [];
         tasks.value = newState.tasks || [];
+        votingCards.value = newState.numberOfCards ||  [1, 2, 3, 5, 8, 13, 21, '☕', '?'];
+        votingTask.value = tasks.value.find(t => t.votingStatus === votingStatus.VOTING) || null;
     });
   }
+
+  
 });
+
 
 onBeforeUnmount(() => {
   if (roomSocket) {
@@ -52,110 +64,230 @@ onBeforeUnmount(() => {
   }
 });
 
-
-// --- DADOS ---
-// Use 'const' para dados que não mudam
-const votingCards = [1, 2, 3, 5, 8, 13, 21, '☕', '?'];
-// Inicializa vazia; será populada no onMounted
-const tasks = ref<string[]>([]);
-
-// Use 'ref' para dados que podem mudar (ex: vindos de uma API ou WebSocket)
-const participants = ref<any[]>([]);
-
-
-const myVote = ref<string | number | null>(null);
-
-// --- EVENTOS ---
-const emit = defineEmits(['vote']);
-
 const handleVote = (card: string | number) => {
-  // Lógica para permitir desmarcar o voto
-  myVote.value = myVote.value === card ? null : card;
-  emit('vote', myVote.value);
+  myVote.value = myVote.value === card ? null : card;  
+};
+
+const confirmVote = () => {
+  if (roomSocket && votingTask.value && myVote.value !== null) {
+    roomSocket.sendMessage('USER_VOTE', { 
+      taskId: votingTask.value.id,
+      vote: String(myVote.value),
+      userId: userId.value,
+    });    
+  }
+}
+
+const resetVote = () => {
+  myVote.value = null;
 };
 
 const onRegisterCancel = () => {
   router.replace('/');
 };
+
+const addTask = (task: string) => {
+  if (roomSocket) {
+    roomSocket.sendMessage('ADD_TASK', { title: task });
+  } else {
+    console.warn('WebSocket não está conectado. Tarefa não enviada.');
+    tasks.value.push(task);
+  }
+};
+
+const editarCards = (cards: Array<string | number>) => {
+  if (roomSocket) {
+    roomSocket.sendMessage('UPDATE_CARDS', { numberOfCards: cards });
+  }
+};
+
+const selectTaskForVoting = (taskId: string) => {
+  if (roomSocket) {
+    roomSocket.sendMessage(
+      'ON_VOTING', 
+      { taskId: taskId, votingStatus: votingStatus.VOTING }
+    );
+  }
+};
+
+const isTaskDisabled = (task: Task) => {
+  if (task.isCompleted) return true;
+  if (!votingTask.value) return false;
+  return String(votingTask.value.id) !== String(task.id);
+}
+
+const revealCards = () => {
+  if (roomSocket && votingTask.value) {
+    roomSocket.sendMessage(
+      'ON_VOTING', 
+      { taskId: votingTask.value.id, votingStatus: votingStatus.COMPLETED }
+    );
+    resetVote();
+  }
+};
+
+const getTaskAverage = (task: Task): string | null => {
+  if (!task || !task.votes) return null;
+  const numericVotes = Object.values(task.votes)
+    .map(value => Number(value))
+    .filter(value => Number.isFinite(value));
+
+  if (numericVotes.length === 0) {
+    return null;
+  }
+
+  const total = numericVotes.reduce((sum, value) => sum + value, 0);
+  const average = total / numericVotes.length;
+
+  return Number.isInteger(average) ? String(average) : average.toFixed(1);
+};
 </script>
 
 <template>
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-2 m-7">
+  <div class="min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
+    <div class="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[340px_1fr]">
 
-    <!-- COLUNA DA ESQUERDA: INFORMAÇÕES -->
-    <aside class="lg:col-span-1 space-y-8">
-      <section class="bg-white p-6 rounded-lg shadow-md mt-3">
-        <div class="flex justify-between mb-4">
-          <h2 class="text-xl font-bold mb-4">Tarefa Atual</h2>
-          <button @click="showAdicionarTarefa = true" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
-            Adicionar Tarefa
+      <!-- COLUNA DA ESQUERDA: INFORMAÇÕES -->
+      <aside class="space-y-6">
+        <section class="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm">
+          <div class="mb-5 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-slate-900">Tarefa Atual</h2>
+          <button 
+            v-if="isScrumMaster" 
+            @click="showAdicionarTarefa = true" 
+            class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold leading-none text-white shadow-sm transition-colors hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:ring-offset-1"
+          >
+            <span>Adicionar</span>
           </button>
-          <ModalAdicionarTarefa v-if="showAdicionarTarefa" @close="showAdicionarTarefa = false" />
+          <ModalAdicionarTarefa v-if="showAdicionarTarefa" @close="showAdicionarTarefa = false" @add-task="addTask" />
         </div>
 
-        <div v-if="tasks.length > 0" class="p-4 border border-gray-200 rounded-lg bg-gray-50">
-          <span class="text-gray-800 text-lg">{{ tasks[0] }}</span>
-        </div>
-        <div v-else class="text-gray-500">Nenhuma tarefa na fila.</div>
-      </section>
-
-
-      <section class="bg-white p-6 rounded-lg shadow-md">
-        <h2 class="text-xl font-bold mb-4 border-b pb-2">Participantes</h2>
-        <ul class="space-y-3">
-          <li v-for="p in participants" :key="p.id" class="flex items-center justify-between p-2 rounded-md" :class="p.vote ? 'bg-green-100' : 'bg-gray-100'">
-            <div class="flex items-center space-x-3">
-              <div class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold">
-                {{ p.name.charAt(0).toUpperCase() }}
-              </div>
-              <span class="text-gray-800 font-medium">{{ p.name }}</span>
+        <div class="space-y-4">
+          <div
+            v-for="task in tasks"
+            :key="task.id"
+            class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
+            :class="{
+              'border-blue-200 bg-blue-50': task.votingStatus === votingStatus.VOTING
+            }"
+          >
+            <div class="min-w-0">
+              <h3 class="truncate text-base font-semibold text-slate-900">{{ task.title }}</h3>
+              <span
+                v-if="task.votingStatus === votingStatus.VOTING"
+                class="mt-1 inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-blue-700"
+              >
+                Votando...
+              </span>
+              <p
+                v-if="task.isCompleted && getTaskAverage(task)"
+                class="mt-2 text-sm font-medium text-slate-600"
+              >
+                Média: <span class="text-slate-900">{{ getTaskAverage(task) }}</span>
+              </p>
             </div>
-            <span class="font-bold text-lg">{{ p.vote ? '✅' : '🤔' }}</span>
-          </li>
-        </ul>
+            <button
+            v-if="isScrumMaster"
+            type="button"
+            @click="selectTaskForVoting(task.id)"
+            :disabled="isTaskDisabled(task)"
+            :class="[
+              'flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold leading-none transition-colors text-center',
+              isTaskDisabled(task)
+                ? 'cursor-not-allowed bg-slate-300 text-slate-500 opacity-60'
+                : 'bg-emerald-500 text-white shadow-sm hover:bg-emerald-400'
+            ]">
+              Votar
+            </button>
+          </div>
+        </div>
+        <div v-if="tasks.length === 0" class="text-sm text-slate-500">Nenhuma tarefa selecionada.</div>
       </section>
-    </aside>
 
-    <!-- COLUNA DA DIREITA: AÇÃO -->
-    <main class="lg:col-span-2 space-y-8  col-2 mt-2">
-      <section class="bg-white p-6 rounded-lg shadow-md">
-        <div class="flex items-center justify-between mb-6">
-          <h2 class="text-xl font-bold mb-4">Escolha sua carta</h2>
-          <div class="flex space-x-4">
-          <button @click="showModalCartas = true" class="bg-green-500 text-white px-4 mt-2 py-2 rounded-md hover:bg-blue-700 transition-colors">
+
+        <section class="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm">
+          <div class="mb-5 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-slate-900">Participantes</h2>
+          <button
+            v-if="isScrumMaster"
+            @click="revealCards"
+            class="inline-flex items-center justify-center rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold leading-none text-white shadow-sm transition-colors hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/60 focus:ring-offset-1"
+          >
+            <span>Revelar</span>
+          </button>
+          </div>
+          <ul class="space-y-3">
+            <li
+              v-for="p in participants"
+              :key="p.id"
+              class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3"
+            >
+              <div class="flex items-center gap-3">
+                <div class="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 text-sm font-semibold text-white">
+                  {{ p.name.charAt(0).toUpperCase() }}
+                </div>
+                <span class="text-sm font-medium text-slate-700">{{ p.name }}</span>
+              </div>
+              <span
+                class="inline-flex h-8 w-8 items-center justify-center rounded-full"
+                :class="votingTask?.votes[p.id] ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'"
+              >
+                {{ votingTask?.votes[p.id] ? '✓' : '…' }}
+              </span>
+            </li>
+          </ul>
+        </section>
+      </aside>
+
+      <!-- COLUNA DA DIREITA: AÇÃO -->
+      <main class="rounded-2xl border border-transparent bg-white/90 p-8 shadow-lg">
+        <section class="space-y-6">
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <h2 class="text-2xl font-semibold text-slate-900">Escolha sua carta</h2>
+            <div class="flex flex-wrap items-center gap-3">
+          <button 
+            v-if="isScrumMaster" 
+            @click="showModalCartas = true" 
+            class="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold leading-none text-white shadow-sm transition-colors hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:ring-offset-1"
+          >
           Editar Cartas
           </button>
-          <button @click="handleVote(myVote!)" class="bg-blue-600 text-white px-4 mt-2 py-2 rounded-md hover:bg-blue-700 transition-colors">
+          <button 
+            :disabled="!myVote" 
+            @click="confirmVote" 
+            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 focus:ring-offset-1 disabled:cursor-not-allowed disabled:border disabled:border-slate-200 disabled:bg-slate-200 disabled:text-slate-500"
+          >
           Confirmar Voto
           </button>
           </div>
-          <ModalCadastrarCards v-if="showModalCartas" @close="showModalCartas = false" />
+          <ModalCadastrarCards @save="editarCards" v-if="showModalCartas" @close="showModalCartas = false" />
         </div>
-
-        <div class="flex flex-wrap gap-4">
+        
+        <div class="grid grid-cols-2 gap-4 p-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           <button
               v-for="card in votingCards"
               :key="card"
               @click="handleVote(card)"
               :class="[
-              'w-16 h-24 text-2xl font-bold rounded-lg shadow-md transition-all transform hover:scale-105 border-2',
+              'flex aspect-[3/4] items-center justify-center rounded-2xl border border-slate-200 bg-white text-2xl font-semibold text-slate-800 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:border-indigo-200',
               myVote === card
-                ? 'bg-blue-600 border-blue-700 text-white scale-105'
-                : 'bg-white border-gray-300 text-gray-700'
+                ? 'border-indigo-500 bg-indigo-600 text-white shadow-lg'
+                : ''
             ]"
           >
             {{ card }}
           </button>
         </div>
+        
        
       </section>
-      
-    </main>
+      </main>
 
-    <ModalCadastrarParticipante
-      v-if="showRegisterModal"
-      @registered="onParticipantRegistered"
-      @close="onRegisterCancel"
-    />
+      <ModalCadastrarParticipante
+        v-if="showRegisterModal"
+        @registered="onParticipantRegistered"
+        @close="onRegisterCancel"
+      />
+    </div>
   </div>
 </template>

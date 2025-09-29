@@ -1,22 +1,20 @@
 package command
 
-
 type CreateTaskRequestCommand struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
-}
-
-type CreateParticipantRequestCommand struct {
-	Name string `json:"name"`
+	Title string `json:"title"`
 }
 
 type UserVoteRequestCommand struct {
-	ParticipantID string `json:"participantId"`
-	TaskID        string `json:"taskId"`
-	CardValue    int    `json:"cardValue"`
+	UserID string      `json:"userId"`
+	TaskID string      `json:"taskId"`
+	Vote   interface{} `json:"vote"`
 }
 
 type SetNumberOfCardsRequestCommand struct {
 	NumberOfCards interface{} `json:"numberOfCards"`
 }
 
+type AlterTaskStatusRequestCommand struct {
+	TaskID       string `json:"taskId"`
+	VotingStatus string `json:"votingStatus"`
+}
