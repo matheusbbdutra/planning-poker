@@ -1,9 +1,5 @@
 package entities
 
-import (
-	"log"
-	"planning-poker/internal/utils"
-)
 
 type Room struct {
 	ID                    string        `json:"id"`
@@ -15,9 +11,8 @@ type Room struct {
 }
 
 func NewRoom(name string) *Room {
-	id, err := utils.GenerateID()
+	id, err := NewID()
 	if err != nil {
-		log.Printf("Error generating room ID: %v", err)
 		panic(err)
 	}
 	return &Room{

@@ -4,7 +4,7 @@
       <div class="space-y-4 md:max-w-sm">
         <h2 class="text-xl font-semibold text-white">Planning Poker</h2>
         <p class="text-sm text-slate-400">
-          Experiência colaborativa para estimar tarefas em minutos, com backend em Go, frontend Nuxt e Redis para tempo real.
+          Experiência colaborativa para estimar tarefas em horas, com backend em Go, frontend Nuxt e Redis para tempo real.
         </p>
         <div class="flex flex-wrap gap-3 text-sm">
           <a

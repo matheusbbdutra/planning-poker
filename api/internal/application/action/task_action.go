@@ -1,4 +1,4 @@
-package handleraction
+package action
 
 import (
 	"context"

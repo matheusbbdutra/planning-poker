@@ -40,8 +40,6 @@ services:
     image: "redis:alpine"
     volumes:
       - ./redis-data-prod:/data
-    ports:
-      - "6379:6379"
     networks:
       - traefik_default
     restart: always

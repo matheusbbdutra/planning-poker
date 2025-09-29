@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 	"planning-poker/internal/http/handler"
-	"planning-poker/internal/utils"
+	"planning-poker/internal/http/jsoncodec"
 )
 
 // Hub mantém o conjunto de clientes ativos e transmite mensagens para eles.
@@ -76,7 +76,7 @@ func (h *Hub) run() {
 
 			initialState := handler.Message{
 				Type:    "INITIAL_STATE",
-				Payload: utils.MustMarshal(roomState),
+				Payload: jsoncodec.MustMarshal(roomState),
 			}
 			if err := client.Conn.WriteJSON(initialState); err != nil {
 				log.Printf("Erro ao enviar estado inicial para o cliente %s: %v", client.UserID, err)

@@ -4,7 +4,7 @@
       <div class="grid gap-12 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-start">
         <div class="space-y-8">
           <p class="inline-flex items-center rounded-full bg-blue-100 px-4 py-1 text-sm font-semibold text-blue-700">
-            Estime em minutos
+            Estime em horas
           </p>
           <div class="space-y-6">
             <h1 class="text-4xl font-bold text-slate-900 md:text-5xl">

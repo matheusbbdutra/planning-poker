@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"planning-poker/internal/application/action"
 	"planning-poker/internal/application/command"
-	handleraction "planning-poker/internal/application/handler_action"
 	"planning-poker/internal/domain/entities"
+	"planning-poker/internal/http/jsoncodec"
 	"planning-poker/internal/infrastructure/persistence"
 	"planning-poker/internal/ports/repository"
-	"planning-poker/internal/utils"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
@@ -20,7 +20,7 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		// Permite todas as origens por enquanto. Em produção, restrinja!
+		
 		return true
 	},
 }
@@ -48,8 +48,8 @@ type BroadcastMessage struct {
 type HttpWsHandler struct {
 	Hub             Hub
 	RedisRepository repository.RedisRepository
-	CardsAction *handleraction.CardsAction
-	TaskAction           *handleraction.TaskAction
+	CardsAction     *action.CardsAction
+	TaskAction      *action.TaskAction
 }
 
 type Message struct {
@@ -63,8 +63,8 @@ func NewWsHandler(hub Hub, redisClient *redis.Client) *HttpWsHandler {
 	return &HttpWsHandler{
 		Hub:             hub,
 		RedisRepository: redis,
-		CardsAction:     handleraction.NewCardsAction(*redis),
-		TaskAction:      handleraction.NewTaskAction(*redis),
+		CardsAction:     action.NewCardsAction(*redis),
+		TaskAction:      action.NewTaskAction(*redis),
 	}
 }
 
@@ -183,7 +183,7 @@ func (h *HttpWsHandler) roomUpdate(roomId string, roomState entities.Room) {
 		RoomID: roomId,
 		Message: Message{
 			Type:    "ROOM_STATE_UPDATED",
-			Payload: utils.MustMarshal(roomState),
+			Payload: jsoncodec.MustMarshal(roomState),
 		},
 	})
 }
