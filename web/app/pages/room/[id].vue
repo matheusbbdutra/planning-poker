@@ -12,6 +12,7 @@ let userId = ref<string | null>(null);
 const route = useRoute();
 const router = useRouter();
 const name = ref("Sala de Planejamento - Planning Poker");
+let roomSocket: ReturnType<typeof useRoomSocket> | null = null;
 
 onMounted(async () => {
   document.title = name.value;
@@ -26,83 +27,31 @@ onMounted(async () => {
       ? new URL(window.location.href).pathname.split('/').filter(Boolean)
       : [];
     const idFromPath = parts.length ? parts[parts.length - 1] : null;
-    roomId.value = sessionStorage.getItem('roomId') || (route.params.id as string) || idFromPath || null;
+    roomId.value =  (route.params.id as string) || idFromPath || null;
 
   } catch {
     roomId.value = null;
   }
 
-  const payload = await fetchRoomData();
-  if (payload) {
-    tasks.value = Array.isArray(payload.tasks) ? payload.tasks : [];
-    participants.value = Array.isArray(payload.participants) ? payload.participants.filter(p => p != null) : [];
-    document.title = payload.name + " - Planning Poker";
-    if (payload.numberOfCards && Array.isArray(payload.numberOfCards)) {
-      votingCards.splice(0, votingCards.length, ...payload.numberOfCards.filter((c: any) => typeof c === 'number' || typeof c === 'string'));
-    }
+  if (roomId.value && userId.value) {
+    roomSocket = useRoomSocket(roomId.value, userId.value);
+    console.log("Connecting to room socket with roomId:", roomId.value, "and userId:", userId.value);
+    roomSocket.connect();
+
+    watch(roomSocket.roomState, (newState) => {
+      console.log("Room state updated:", newState);
+        participants.value = newState.participants || [];
+        tasks.value = newState.tasks || [];
+    });
   }
 });
 
-
-const onParticipantRegistered = (name: string) => {
-
-    if (!roomId.value) {
-    console.error('roomId não disponível no cliente');
-    return;
+onBeforeUnmount(() => {
+  if (roomSocket) {
+    roomSocket.disconnect();
   }
+});
 
-  fetch("/api/room/add", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ name: name, roomId: roomId.value }),
-  })
-    .then((response) => response.json())
-    .then((data) => {
-      sessionStorage.setItem("userId", data.userId);
-      showRegisterModal.value = false;
-      fetchRoomData()
-    })
-    .catch((error) => {
-      console.error("Erro ao registrar participante:", error);
-    });
-  
-
-};
-
-
-const fetchRoomData = async () => {
-  if (!roomId.value) return;
-
-  try {
-    const res = await fetch(`/api/room/room?roomId=${encodeURIComponent(roomId.value as string)}`, {
-      method: 'GET',
-      headers: { "Content-Type": "application/json" },
-    });
-
-    if (res.status === 404) {
-      await router.replace('/');
-      return;
-    }
-
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-    const payload = await res.json();
-
-    // Se backend retornar payload vazio ou null, considera inexistente
-    if (!payload || (typeof payload === 'object' && Object.keys(payload).length === 0)) {
-      await router.replace('/');
-      return;
-    }
-
-    return payload;
-  } catch (error) {
-    console.error("Erro ao buscar dados da sala:", error);
-    await router.replace('/');
-    return;
-  }
-}
 
 // --- DADOS ---
 // Use 'const' para dados que não mudam

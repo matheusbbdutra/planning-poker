@@ -7,4 +7,5 @@ import (
 
 type RedisRepository interface {
 	CreateRoom(ctx context.Context, room entities.Room) error
+	GetRoom(ctx context.Context, roomId string) (*entities.Room, error)
 }
