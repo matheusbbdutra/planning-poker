@@ -31,7 +31,10 @@
         </div>
       </div>
 
-      <section class="rounded-3xl border border-slate-200 bg-white/80 p-8 shadow-sm backdrop-blur">
+      <section
+        id="como-funciona"
+        class="rounded-3xl border border-slate-200 bg-white/80 p-8 shadow-sm backdrop-blur"
+      >
         <header class="mb-6 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <h2 class="text-2xl font-semibold text-slate-900">Como funciona a rodada</h2>
           <span class="text-sm font-medium uppercase tracking-wide text-slate-500">Regras rápidas</span>
@@ -54,6 +57,77 @@
             <p class="text-sm text-slate-600">
               Ao revelar, o sistema exibe todos os votos e calcula a média automaticamente. Use o resultado para debater e ajustar o esforço final.
             </p>
+          </div>
+        </div>
+      </section>
+
+      <section
+        id="documentacao"
+        class="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm"
+      >
+        <header class="mb-8 space-y-2 text-center">
+          <p class="text-sm font-medium uppercase tracking-wide text-slate-500">Guia de uso</p>
+          <h2 class="text-3xl font-semibold text-slate-900">Documentação na prática</h2>
+          <p class="mx-auto max-w-2xl text-sm text-slate-600">
+            Todo o essencial para conduzir uma sessão de Planning Poker com a sua equipe, desde a criação da sala até o fechamento das estimativas.
+          </p>
+        </header>
+
+        <div class="grid gap-8 lg:grid-cols-3">
+          <article class="space-y-4">
+            <header class="space-y-1">
+              <h3 class="text-lg font-semibold text-slate-800">1. Preparar a rodada</h3>
+              <p class="text-sm text-slate-500">Antes de iniciar</p>
+            </header>
+            <ul class="space-y-2 text-sm text-slate-600">
+              <li>Defina um facilitador para abrir a sala e gerenciar o ritmo.</li>
+              <li>Reforce as cartas disponíveis no baralho e alinhe o significado dos valores.</li>
+              <li>Compartilhe com o time critérios de aceite ou notas da tarefa para guiar a discussão.</li>
+            </ul>
+          </article>
+
+          <article class="space-y-4">
+            <header class="space-y-1">
+              <h3 class="text-lg font-semibold text-slate-800">2. Conduzir estimativas</h3>
+              <p class="text-sm text-slate-500">Durante a sessão</p>
+            </header>
+            <ul class="space-y-2 text-sm text-slate-600">
+              <li>Use o painel da sala para cadastrar tarefas e revelar os votos quando todos escolherem.</li>
+              <li>Estimule o debate: peça para o menor e maior voto explicarem seus motivos antes de uma nova rodada.</li>
+              <li>Mantenha o histórico das estimativas visível para facilitar comparações entre tarefas.</li>
+            </ul>
+          </article>
+
+          <article class="space-y-4">
+            <header class="space-y-1">
+              <h3 class="text-lg font-semibold text-slate-800">3. Encerrar e seguir</h3>
+              <p class="text-sm text-slate-500">Após definir o esforço</p>
+            </header>
+            <ul class="space-y-2 text-sm text-slate-600">
+              <li>Confirme o valor final com todo o time e registre no sistema de tarefas que vocês utilizam.</li>
+              <li>Reveja tarefas pendentes e determine se precisam voltar para refinamento antes da próxima rodada.</li>
+              <li>Baixe o relatório da sala ou salve um print para manter o registro das decisões (em breve).</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="mt-10 grid gap-6 rounded-2xl bg-slate-50 p-6 text-sm text-slate-600 md:grid-cols-[1.4fr_1fr]">
+          <div class="space-y-3">
+            <h3 class="text-base font-semibold text-slate-800">Boas práticas de colaboração</h3>
+            <p>
+              Garanta que todos tenham um canal de voz ativo, evite interrupções e combine um tempo máximo por tarefa para manter o ritmo.
+            </p>
+            <p>
+              Para times distribuídos, use o chat integrado da sua ferramenta de reunião para registrar dúvidas que surgirem durante a discussão.
+            </p>
+          </div>
+          <div class="space-y-3 rounded-xl border border-dashed border-slate-200 bg-white p-4">
+            <h3 class="text-base font-semibold text-slate-800">Configurações rápidas</h3>
+            <ul class="space-y-2">
+              <li><span class="font-medium text-slate-700">Trocar baralho:</span> abra o modal “Cadastrar cards” na sala.</li>
+              <li><span class="font-medium text-slate-700">Resetar rodada:</span> use o botão “Limpar votos” após abrir a votação.</li>
+              <li><span class="font-medium text-slate-700">Adicionar novas tarefas:</span> utilize o modal “Adicionar tarefa” para manter a fila organizada.</li>
+            </ul>
           </div>
         </div>
       </section>
