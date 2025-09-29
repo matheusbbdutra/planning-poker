@@ -3,7 +3,6 @@ package entities
 import (
 	"log"
 	"planning-poker/internal/domain/enum"
-	"planning-poker/internal/utils"
 )
 
 type Task struct {
@@ -16,7 +15,7 @@ type Task struct {
 }
 
 func NewTask(title string) *Task {
-	id, err := utils.GenerateID()
+	id, err := NewID()
 	if err != nil {
 		log.Printf("Error generating task ID: %v", err)
 		panic(err)

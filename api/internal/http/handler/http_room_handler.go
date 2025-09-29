@@ -5,9 +5,9 @@ import (
 	"log"
 	"net/http"
 	"planning-poker/internal/domain/entities"
+	"planning-poker/internal/http/jsoncodec"
 	"planning-poker/internal/infrastructure/persistence"
 	"planning-poker/internal/ports/repository"
-	"planning-poker/internal/utils"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/redis/go-redis/v9"
@@ -91,7 +91,7 @@ func (h *RoomHandler) JoinRoom(w http.ResponseWriter, r *http.Request) error {
 		RoomID: room.ID,
 		Message: Message{
 			Type:    "ROOM_STATE_UPDATED",
-			Payload: utils.MustMarshal(room),
+			Payload: jsoncodec.MustMarshal(room),
 		},
 	})
 

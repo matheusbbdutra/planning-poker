@@ -1,6 +1,6 @@
 package entities
 
-import "planning-poker/internal/utils"
+
 
 type Participant struct {
 	ID            string `json:"id"`
@@ -10,7 +10,7 @@ type Participant struct {
 }
 
 func NewParticipant(name string, isScrumMaster bool) *Participant {
-	id, err := utils.GenerateID()
+	id, err := NewID()
 	if err != nil {
 		panic(err)
 	}

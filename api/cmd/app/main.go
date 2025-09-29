@@ -1,7 +1,7 @@
 package main
 
 import (
-	"planning-poker/bootstrap"
+	"planning-poker/internal/bootstrap"
 
 )
 
