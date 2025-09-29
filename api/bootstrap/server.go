@@ -70,6 +70,11 @@ func initRoutes(roomHandler *handler.RoomHandler, wsHandler *handler.HttpWsHandl
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 				}
 			})
+			r.Post("/{roomId}/join", func(w http.ResponseWriter, r *http.Request) {
+				if err := roomHandler.JoinRoom(w, r); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				}
+			})
 		})
 		r.Get("/room/ws/{roomId}/{userId}", wsHandler.HandleWebSocket)
 	})

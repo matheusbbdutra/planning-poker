@@ -1,75 +1,42 @@
-# Nuxt Minimal Starter
+# Planning Poker – Frontend
 
-Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
+Aplicação Nuxt 3 que entrega a interface do Planning Poker online. A tela inicial permite criar uma nova sala ou entrar em uma existente sem necessidade de autenticação.
 
-## Setup
+## Tela Inicial
 
-Make sure to install dependencies:
+- **Criar sala:** informe um nome para a sessão e seu nome. Ao enviar, uma sala é criada e você entra automaticamente como Scrum Master. O `userId` e o flag `isScrumMaster` são salvos em `sessionStorage`.
+- **Entrar em sala:** informe o código da sala e seu nome. O backend retorna seu `userId`, que também é persistido no `sessionStorage`. Você é redirecionado para a URL `/room/{id}` com o WebSocket conectado.
+- **Fluxo básico:**
+  1. Scrum Master cria a sala e compartilha o `roomId`.
+  2. Participantes acessam a tela inicial, escolhem “Entrar em sala” e preenchem o ID.
+  3. Todos são levados à tela da sala para votar nas tarefas em tempo real.
+
+### Screenshot da Tela Inicial
+
+> Substitua o caminho abaixo pelo arquivo definitivo quando tiver o print.
+
+![Tela inicial do Planning Poker](./docs/screens/tela-inicial.png)
+
+## Como executar
+
+Instale as dependências e suba o servidor de desenvolvimento em `http://localhost:3000`.
 
 ```bash
-# npm
+# instalar dependências
 npm install
 
-# pnpm
-pnpm install
-
-# yarn
-yarn install
-
-# bun
-bun install
-```
-
-## Development Server
-
-Start the development server on `http://localhost:3000`:
-
-```bash
-# npm
+# iniciar modo desenvolvimento
 npm run dev
-
-# pnpm
-pnpm dev
-
-# yarn
-yarn dev
-
-# bun
-bun run dev
 ```
 
-## Production
-
-Build the application for production:
+### Build de produção
 
 ```bash
-# npm
+# gerar build
 npm run build
 
-# pnpm
-pnpm build
-
-# yarn
-yarn build
-
-# bun
-bun run build
-```
-
-Locally preview production build:
-
-```bash
-# npm
+# pré-visualizar build
 npm run preview
-
-# pnpm
-pnpm preview
-
-# yarn
-yarn preview
-
-# bun
-bun run preview
 ```
 
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+Para outras opções de gerenciadores de pacote ou detalhes de deploy consulte a [documentação oficial do Nuxt](https://nuxt.com/docs/getting-started/introduction).

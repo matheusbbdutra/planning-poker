@@ -1,8 +1,10 @@
 package bootstrap
 
 import (
+	"context"
 	"log"
 	"planning-poker/internal/http/handler"
+	"planning-poker/internal/utils"
 )
 
 // Hub mantém o conjunto de clientes ativos e transmite mensagens para eles.
@@ -44,7 +46,7 @@ func (h *Hub) UnregisterClient(client *handler.Client) {
 }
 
 func (h *Hub) BroadcastToRoom(message handler.BroadcastMessage) {
-	h.broadcast	<- message
+	h.broadcast <- message
 }
 
 func (h *Hub) run() {
@@ -56,7 +58,11 @@ func (h *Hub) run() {
 			}
 			h.rooms[client.RoomID][client] = true
 			log.Printf("Cliente registrado na sala %s. Total de clientes na sala: %d", client.RoomID, len(h.rooms[client.RoomID]))
-			roomState, err := client.Redis.GetRoom(client.Ctx, client.RoomID)
+			if err := client.Redis.ConnectedUser(context.Background(), client.RoomID, client.UserID, true); err != nil {
+				log.Printf("Erro ao conectar usuário %s na sala %s: %v", client.UserID, client.RoomID, err)
+			}
+
+			roomState, err := client.Redis.GetRoom(context.Background(), client.RoomID)
 
 			if err != nil {
 				log.Printf("Erro ao buscar estado inicial da sala %s: %v", client.RoomID, err)
@@ -70,7 +76,7 @@ func (h *Hub) run() {
 
 			initialState := handler.Message{
 				Type:    "INITIAL_STATE",
-				Payload: roomState,
+				Payload: utils.MustMarshal(roomState),
 			}
 			if err := client.Conn.WriteJSON(initialState); err != nil {
 				log.Printf("Erro ao enviar estado inicial para o cliente %s: %v", client.UserID, err)
@@ -84,6 +90,11 @@ func (h *Hub) run() {
 				if len(h.rooms[client.RoomID]) == 0 {
 					delete(h.rooms, client.RoomID)
 				}
+				err := client.Redis.ConnectedUser(context.Background(), client.RoomID, client.UserID, false)
+				if err != nil {
+					log.Printf("Erro ao desconectar usuário %s da sala %s: %v", client.UserID, client.RoomID, err)
+				}				
+
 				log.Printf("Cliente %s removido da sala %s", client.UserID, client.RoomID)
 			}
 

@@ -50,7 +50,6 @@ const parseCards = (raw: string): Array<string | number> => {
     .map(s => s.trim())
     .filter(s => s.length > 0)
     .map(s => {
-      // tenta converter para número quando aplicável
       const n = Number(s);
       return Number.isFinite(n) ? n : s;
     });
@@ -63,11 +62,8 @@ const handleCreateCard = () => {
     error.value = 'Informe ao menos uma carta válida.';
     return;
   }
-
-  // Emite as cartas para o pai (para atualizar estado/global)
   emit('save', parsed);
 
-  // Fecha o modal
   emit('close');
   input.value = '';
 };

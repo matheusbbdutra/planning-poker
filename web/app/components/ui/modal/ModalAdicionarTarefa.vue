@@ -1,11 +1,15 @@
 <script setup lang="ts">
 const emit = defineEmits<{
   (e: 'close'): void;
+  (e: 'add-task', task: string): void;
 }>();
 const input = ref('');
 const error = ref<string | null>(null);
 
 const handleAddTarefa = () => {
+  if (input.value.trim()) {
+    emit('add-task', input.value.trim());
+  }
 
   emit('close');
 };

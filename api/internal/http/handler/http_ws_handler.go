@@ -1,12 +1,15 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
 	"log"
 	"net/http"
+	"planning-poker/internal/application/command"
+	handleraction "planning-poker/internal/application/handler_action"
+	"planning-poker/internal/domain/entities"
 	"planning-poker/internal/infrastructure/persistence"
 	"planning-poker/internal/ports/repository"
+	"planning-poker/internal/utils"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
@@ -22,20 +25,6 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-type Client struct {
-	Conn   *websocket.Conn
-	Hub    Hub 
-	RoomID string
-	UserID string
-	Ctx    context.Context
-	Redis repository.RedisRepository
-}
-
-type BroadcastMessage struct {
-	RoomID  string
-	Message Message
-}
-
 type Hub interface {
 	RegisterClient(client *Client)
 	UnregisterClient(client *Client)
@@ -43,20 +32,39 @@ type Hub interface {
 }
 
 
+type Client struct {
+	Conn   *websocket.Conn
+	Hub    	Hub
+	RoomID string
+	UserID string
+	Redis  repository.RedisRepository
+}
+
+type BroadcastMessage struct {
+	RoomID  string
+	Message Message
+}
+
 type HttpWsHandler struct {
 	Hub             Hub
 	RedisRepository repository.RedisRepository
+	CardsAction *handleraction.CardsAction
+	TaskAction           *handleraction.TaskAction
 }
 
 type Message struct {
 	Type    string      `json:"type"`
-	Payload interface{} `json:"payload"`
+	Payload json.RawMessage `json:"payload"`
 }
 
 func NewWsHandler(hub Hub, redisClient *redis.Client) *HttpWsHandler {
+	redis := persistence.NewRedisRepositoryImpl(redisClient)
+
 	return &HttpWsHandler{
 		Hub:             hub,
-		RedisRepository: persistence.NewRedisRepositoryImpl(redisClient),
+		RedisRepository: redis,
+		CardsAction:     handleraction.NewCardsAction(*redis),
+		TaskAction:      handleraction.NewTaskAction(*redis),
 	}
 }
 
@@ -70,15 +78,13 @@ func (h *HttpWsHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request) 
 
 	roomId := chi.URLParam(r, "roomId")
 	userId := chi.URLParam(r, "userId")
-	ctx, cancel := context.WithCancel(context.Background())
 
 	client := &Client{
 		Conn:   conn,
 		Hub:    h.Hub,
 		RoomID: roomId,
 		UserID: userId,
-		Ctx:   ctx,
-		Redis: h.RedisRepository,
+		Redis:  h.RedisRepository,
 	}
 
 	// Registrar o client no hub
@@ -87,7 +93,6 @@ func (h *HttpWsHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request) 
 	// Iniciar a leitura de mensagens do WebSocket
 	go func() {
 		defer func() {
-			cancel()
 			h.Hub.UnregisterClient(client)
 			conn.Close()
 		}()
@@ -104,7 +109,81 @@ func (h *HttpWsHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request) 
 				break
 			}
 
-			log.Printf("Received message: %+v", msg)
+			log.Printf("Received message: Type: %s, Payload: %s", msg.Type, string(msg.Payload))
+
+			switch msg.Type {
+			case "UPDATE_CARDS":
+				var cards command.SetNumberOfCardsRequestCommand
+				if err := json.Unmarshal(msg.Payload, &cards); err != nil {
+					log.Println("Invalid payload for UPDATE_CARDS:", err)
+					continue
+				}
+
+				roomState, err := h.CardsAction.NewCardsExecute(roomId, cards.NumberOfCards)
+				if err != nil {
+					log.Println("Error updating cards:", err)
+					continue
+				}
+				log.Printf("Updated room state: %+v", roomState)
+
+				h.roomUpdate(roomId, *roomState)
+			case "ADD_TASK":
+				var task command.CreateTaskRequestCommand
+				if err := json.Unmarshal(msg.Payload, &task); err != nil {
+					log.Println("Invalid payload for ADD_TASK:", err)
+					continue
+				}
+
+				roomState, err := h.TaskAction.NewTask(roomId, &task)
+				if err != nil {
+					log.Println("Error adding task:", err)
+					continue
+				}
+				log.Printf("Updated room state: %+v", roomState)
+
+				h.roomUpdate(roomId, *roomState)
+				
+			case "ON_VOTING":
+				var status command.AlterTaskStatusRequestCommand
+				if err := json.Unmarshal(msg.Payload, &status); err != nil {
+					log.Println("Invalid payload for ON_VOTING:", err)
+					continue
+				}
+
+				roomState, err := h.TaskAction.AlterTaskStatus(roomId, status.TaskID, status.VotingStatus)
+				if err != nil {
+					log.Println("Error changing task status:", err)
+					continue
+				}
+				log.Printf("Updated room state: %+v", roomState)
+
+				h.roomUpdate(roomId, *roomState)
+			case "USER_VOTE":
+				var vote command.UserVoteRequestCommand
+				if err := json.Unmarshal(msg.Payload, &vote); err != nil {
+					log.Println("Invalid payload for USER_VOTE:", err)
+					continue
+				}
+
+				roomState, err := h.TaskAction.AddVote(roomId, &vote)
+				if err != nil {
+					log.Println("Error adding vote:", err)
+					continue
+				}
+				log.Printf("Updated room state after vote: %+v", roomState)
+
+				h.roomUpdate(roomId, *roomState)
+			}
 		}
 	}()
+}
+
+func (h *HttpWsHandler) roomUpdate(roomId string, roomState entities.Room) {
+	h.Hub.BroadcastToRoom(BroadcastMessage{
+		RoomID: roomId,
+		Message: Message{
+			Type:    "ROOM_STATE_UPDATED",
+			Payload: utils.MustMarshal(roomState),
+		},
+	})
 }

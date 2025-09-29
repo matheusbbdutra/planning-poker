@@ -1,24 +1,32 @@
 package entities
 
-import "github.com/google/uuid"
+import (
+	"log"
+	"planning-poker/internal/utils"
+)
 
 type Room struct {
-	ID          uuid.UUID `json:"id"`
-	Name        string     `json:"name"`
-	Participants []Participant `json:"participants"`
-	Tasks       []Task       `json:"tasks"`
-	NumberOfTaskCompleted int `json:"numberOfTaskCompleted"`
-	NumberOfCards []int     `json:"numberOfCards"`
+	ID                    string        `json:"id"`
+	Name                  string        `json:"name"`
+	Participants          []Participant `json:"participants"`
+	Tasks                 []Task        `json:"tasks"`
+	NumberOfTaskCompleted int           `json:"numberOfTaskCompleted"`
+	NumberOfCards         interface{}   `json:"numberOfCards"`
 }
 
 func NewRoom(name string) *Room {
+	id, err := utils.GenerateID()
+	if err != nil {
+		log.Printf("Error generating room ID: %v", err)
+		panic(err)
+	}
 	return &Room{
-		ID:                   uuid.New(),
-		Name:                 name,
-		Participants:         []Participant{},
-		Tasks:               []Task{},
+		ID:                    id,
+		Name:                  name,
+		Participants:          []Participant{},
+		Tasks:                 []Task{},
 		NumberOfTaskCompleted: 0,
-		NumberOfCards:       []int{},
+		NumberOfCards:         interface{}(nil),
 	}
 }
 
@@ -31,29 +39,21 @@ func (r *Room) AddTask(task Task) {
 }
 
 func (r *Room) GetTaskByID(taskID string) *Task {
-	for _, task := range r.Tasks {
-		if task.ID == taskID {
-			return &task
+	for i := range r.Tasks {
+		if r.Tasks[i].ID == taskID {
+			return &r.Tasks[i]
 		}
 	}
 	return nil
 }
 
-func (r *Room) GetParticipantByID(participantID uuid.UUID) *Participant {
-	for _, participant := range r.Participants {
-		if participant.ID == participantID {
-			return &participant
+func (r *Room) GetParticipantByID(participantID string) *Participant {
+	for i := range r.Participants {
+		if r.Participants[i].ID == participantID {
+			return &r.Participants[i]
 		}
 	}
 	return nil
-}
-
-func (r *Room) CompleteTask(taskID string) {
-	task := r.GetTaskByID(taskID)
-	if task != nil {
-		task.Status = "completed"
-		r.NumberOfTaskCompleted++
-	}
 }
 
 func (r *Room) SetNumberOfCards(number []int) {
