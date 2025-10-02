@@ -50,6 +50,7 @@ type HttpWsHandler struct {
 	RedisRepository repository.RedisRepository
 	CardsAction     *action.CardsAction
 	TaskAction      *action.TaskAction
+	RoomAction      *action.RoomAction
 }
 
 type Message struct {
@@ -65,6 +66,7 @@ func NewWsHandler(hub Hub, redisClient *redis.Client) *HttpWsHandler {
 		RedisRepository: redis,
 		CardsAction:     action.NewCardsAction(*redis),
 		TaskAction:      action.NewTaskAction(*redis),
+		RoomAction:      action.NewRoomAction(*redis),
 	}
 }
 
@@ -171,6 +173,21 @@ func (h *HttpWsHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request) 
 					continue
 				}
 				log.Printf("Updated room state after vote: %+v", roomState)
+
+				h.roomUpdate(roomId, *roomState)
+			case "JOIN_ROOM":
+				var joinRoom command.ParticipantJoinRoomCommand
+				if err := json.Unmarshal(msg.Payload, &joinRoom); err != nil {
+					log.Println("Invalid payload for JOIN_ROOM:", err)
+					continue
+				}
+
+				roomState, err := h.RoomAction.ParticipantJoinRoom(roomId, &joinRoom)
+				if err != nil {
+					log.Println("Error joining room:", err)
+					continue
+				}
+				log.Printf("Updated room state after participant joined: %+v", roomState)
 
 				h.roomUpdate(roomId, *roomState)
 			}

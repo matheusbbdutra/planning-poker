@@ -18,3 +18,7 @@ type AlterTaskStatusRequestCommand struct {
 	TaskID       string `json:"taskId"`
 	VotingStatus string `json:"votingStatus"`
 }
+
+type ParticipantJoinRoomCommand struct {
+	UserName string `json:"userName"`
+}

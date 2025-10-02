@@ -189,7 +189,6 @@ const handleJoinRoom = async({ roomId, userName }) => {
     return;
   }
   sessionStorage.setItem("userId", userId);
-  sessionStorage.setItem("isScrumMaster", "false");
   router.push(`/room/${roomId}`);
 };
 </script>
