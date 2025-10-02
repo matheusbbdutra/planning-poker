@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
 import ModalAdicionarTarefa from '@/components/ui/modal/ModalAdicionarTarefa.vue';
 import ModalCadastrarCards from '@/components/ui/modal/ModalCadastrarCards.vue';
 import ModalCadastrarParticipante from '@/components/ui/modal/ModalCadastrarParticpante.vue';
@@ -20,9 +19,20 @@ const participants = ref<Participant[]>([]);
 const myVote = ref<string | number | null>(null);
 const isScrumMaster = ref(false);
 const votingTask = ref<Task | null>(null);
+const socketStops: Array<() => void> = [];
+const defaultCards = [1, 2, 3, 5, 8, 13, 21, '☕', '?'];
+const visibleTaskLimit = 3;
+const taskWindowStart = ref(0);
+const visibleTasks = computed(() =>
+  tasks.value.slice(taskWindowStart.value, taskWindowStart.value + visibleTaskLimit)
+);
+const showTaskNavigation = computed(() => tasks.value.length > visibleTaskLimit);
+const canScrollUp = computed(() => taskWindowStart.value > 0);
+const canScrollDown = computed(
+  () => taskWindowStart.value + visibleTaskLimit < tasks.value.length
+);
 
 onMounted(async () => {
-  isScrumMaster.value = sessionStorage.getItem('isScrumMaster') === 'true';
   document.title = name.value;
   userId.value = sessionStorage.getItem('userId');
   if (!userId.value) {
@@ -41,17 +51,8 @@ onMounted(async () => {
     roomId.value = null;
   }
 
-  if (roomId.value && userId.value) {
-    roomSocket = useRoomSocket(roomId.value, userId.value);
-    console.log("Connecting to room socket with roomId:", roomId.value, "and userId:", userId.value);
-
-    watch(roomSocket.roomState, (newState: Room) => {
-      console.log("Room state updated:", newState);
-        participants.value = newState.participants.filter(p => p.isConnected === true) || [];
-        tasks.value = newState.tasks || [];
-        votingCards.value = newState.numberOfCards ||  [1, 2, 3, 5, 8, 13, 21, '☕', '?'];
-        votingTask.value = tasks.value.find(t => t.votingStatus === votingStatus.VOTING) || null;
-    });
+  if (userId.value) {
+    initializeRoomSocket(userId.value);
   }
 
   
@@ -59,6 +60,7 @@ onMounted(async () => {
 
 
 onBeforeUnmount(() => {
+  socketStops.forEach(stop => stop())
   if (roomSocket) {
     roomSocket.disconnect();
   }
@@ -69,13 +71,20 @@ const handleVote = (card: string | number) => {
 };
 
 const confirmVote = () => {
-  if (roomSocket && votingTask.value && myVote.value !== null) {
-    roomSocket.sendMessage('USER_VOTE', { 
-      taskId: votingTask.value.id,
-      vote: String(myVote.value),
-      userId: userId.value,
-    });    
+  if (!votingTask.value) {
+    console.warn('Nenhuma tarefa ativa para receber votos.');
+    return;
   }
+
+  if (!roomSocket || myVote.value === null) {
+    return;
+  }
+
+  roomSocket.sendMessage('USER_VOTE', {
+    taskId: votingTask.value.id,
+    vote: String(myVote.value),
+    userId: userId.value,
+  });
 }
 
 const resetVote = () => {
@@ -141,6 +150,107 @@ const getTaskAverage = (task: Task): string | null => {
 
   return Number.isInteger(average) ? String(average) : average.toFixed(1);
 };
+
+const taskWithAverage = computed(() => {
+  if (votingTask.value) {
+    return null;
+  }
+  const completedTasks = [...tasks.value].reverse();
+  return completedTasks.find(task => task.isCompleted && getTaskAverage(task)) ?? null;
+});
+
+const lastAverage = computed(() => {
+  const task = taskWithAverage.value;
+  return task ? getTaskAverage(task) : null;
+});
+
+const onParticipantRegistered = async (name: string) => {
+  showRegisterModal.value = false;
+  const { data, error } = await useApi(`/room/${roomId.value}/join`, {
+      method: 'POST',
+      body: { userName: name },
+  });
+
+  if (error.value) {
+    console.error("Erro ao entrar na sala:", error.value);
+    return;
+  }
+
+  const createdUserId = data.value?.id;
+
+  if (!createdUserId) {
+    console.error("Resposta inesperada ao entrar na sala:", data.value);
+    return;
+  }
+  userId.value = createdUserId;
+  sessionStorage.setItem("userId", createdUserId);
+  initializeRoomSocket(createdUserId);
+};
+
+const initializeRoomSocket = (connectedUserId: string) => {
+  if (!roomId.value) return;
+
+  socketStops.forEach(stop => stop());
+  socketStops.length = 0;
+
+  roomSocket = useRoomSocket(roomId.value, connectedUserId);
+
+  socketStops.push(
+    watch(roomSocket.roomState, (newState: Room | null) => {
+      if (!newState) return;
+      participants.value = newState.participants.filter(p => p.isConnected);
+      tasks.value = newState.tasks ?? [];
+      votingCards.value = newState.numberOfCards ?? defaultCards;
+      votingTask.value = tasks.value.find(t => t.votingStatus === votingStatus.VOTING) ?? null;
+      isScrumMaster.value = newState.participants.some(
+        p => String(p.id) === String(connectedUserId) && p.isScrumMaster
+      );
+    }, { immediate: true })
+  );
+
+  socketStops.push(
+    watch(roomSocket.isConnected, state => {
+      console.log('socket status', state ? 'OPEN' : 'CLOSED');
+    }, { immediate: true })
+  );
+};
+
+const scrollTasksUp = () => {
+  if (!canScrollUp.value) return;
+  taskWindowStart.value = Math.max(0, taskWindowStart.value - 1);
+};
+
+const scrollTasksDown = () => {
+  if (!canScrollDown.value) return;
+  taskWindowStart.value = Math.min(
+    tasks.value.length - visibleTaskLimit,
+    taskWindowStart.value + 1
+  );
+};
+
+watch(tasks, () => {
+  const maxStart = Math.max(0, tasks.value.length - visibleTaskLimit);
+  if (taskWindowStart.value > maxStart) {
+    taskWindowStart.value = maxStart;
+  }
+});
+
+watch(votingTask, newTask => {
+  if (!newTask) {
+    return;
+  }
+  const index = tasks.value.findIndex(
+    task => String(task.id) === String(newTask.id)
+  );
+  if (index === -1) {
+    return;
+  }
+  if (index < taskWindowStart.value) {
+    taskWindowStart.value = index;
+  } else if (index >= taskWindowStart.value + visibleTaskLimit) {
+    taskWindowStart.value = index - visibleTaskLimit + 1;
+  }
+});
 </script>
 
 <template>
@@ -162,44 +272,68 @@ const getTaskAverage = (task: Task): string | null => {
           <ModalAdicionarTarefa v-if="showAdicionarTarefa" @close="showAdicionarTarefa = false" @add-task="addTask" />
         </div>
 
-        <div class="space-y-4">
-          <div
-            v-for="task in tasks"
-            :key="task.id"
-            class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
-            :class="{
-              'border-blue-200 bg-blue-50': task.votingStatus === votingStatus.VOTING
-            }"
-          >
-            <div class="min-w-0">
-              <h3 class="truncate text-base font-semibold text-slate-900">{{ task.title }}</h3>
-              <span
-                v-if="task.votingStatus === votingStatus.VOTING"
-                class="mt-1 inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-blue-700"
-              >
-                Votando...
-              </span>
-              <p
-                v-if="task.isCompleted && getTaskAverage(task)"
-                class="mt-2 text-sm font-medium text-slate-600"
-              >
-                Média: <span class="text-slate-900">{{ getTaskAverage(task) }}</span>
-              </p>
-            </div>
-            <button
-            v-if="isScrumMaster"
+        <div class="space-y-3">
+          <button
+            v-if="showTaskNavigation"
             type="button"
-            @click="selectTaskForVoting(task.id)"
-            :disabled="isTaskDisabled(task)"
-            :class="[
-              'flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold leading-none transition-colors text-center',
-              isTaskDisabled(task)
-                ? 'cursor-not-allowed bg-slate-300 text-slate-500 opacity-60'
-                : 'bg-emerald-500 text-white shadow-sm hover:bg-emerald-400'
-            ]">
-              Votar
-            </button>
+            class="flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white py-1 text-sm font-medium text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="!canScrollUp"
+            @click="scrollTasksUp"
+            aria-label="Mostrar tarefas anteriores"
+          >
+            ↑
+          </button>
+
+          <div class="space-y-4">
+            <div
+              v-for="task in visibleTasks"
+              :key="task.id"
+              class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
+              :class="{
+                'border-blue-200 bg-blue-50': task.votingStatus === votingStatus.VOTING
+              }"
+            >
+              <div class="min-w-0">
+                <h3 class="truncate text-base font-semibold text-slate-900">{{ task.title }}</h3>
+                <span
+                  v-if="task.votingStatus === votingStatus.VOTING"
+                  class="mt-1 inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-blue-700"
+                >
+                  Votando...
+                </span>
+                <p
+                  v-if="task.isCompleted && getTaskAverage(task)"
+                  class="mt-2 text-sm font-medium text-slate-600"
+                >
+                  Média: <span class="text-slate-900">{{ getTaskAverage(task) }}</span>
+                </p>
+              </div>
+              <button
+              v-if="isScrumMaster"
+              type="button"
+              @click="selectTaskForVoting(task.id)"
+              :disabled="isTaskDisabled(task)"
+              :class="[
+                'flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold leading-none transition-colors text-center',
+                isTaskDisabled(task)
+                  ? 'cursor-not-allowed bg-slate-300 text-slate-500 opacity-60'
+                  : 'bg-emerald-500 text-white shadow-sm hover:bg-emerald-400'
+              ]">
+                Votar
+              </button>
+            </div>
           </div>
+
+          <button
+            v-if="showTaskNavigation"
+            type="button"
+            class="flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white py-1 text-sm font-medium text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="!canScrollDown"
+            @click="scrollTasksDown"
+            aria-label="Mostrar próximas tarefas"
+          >
+            ↓
+          </button>
         </div>
         <div v-if="tasks.length === 0" class="text-sm text-slate-500">Nenhuma tarefa selecionada.</div>
       </section>
@@ -253,7 +387,7 @@ const getTaskAverage = (task: Task): string | null => {
           Editar Cartas
           </button>
           <button 
-            :disabled="!myVote" 
+            :disabled="!myVote || !votingTask" 
             @click="confirmVote" 
             class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 focus:ring-offset-1 disabled:cursor-not-allowed disabled:border disabled:border-slate-200 disabled:bg-slate-200 disabled:text-slate-500"
           >
@@ -277,6 +411,13 @@ const getTaskAverage = (task: Task): string | null => {
           >
             {{ card }}
           </button>
+        </div>
+
+        <div
+          v-if="!votingTask && lastAverage"
+          class="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-sm font-semibold text-slate-700"
+        >
+          Média da última votação: <span class="text-slate-900">{{ lastAverage }}</span>
         </div>
         
        
