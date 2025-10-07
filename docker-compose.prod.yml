@@ -7,10 +7,8 @@ services:
     networks:
       - traefik_default
     restart: always
-    depends_on:
-      - redis
     environment:
-      - REDIS_ADDR=redis:6379
+      - REDIS_ADDR= ${REDIS_ADDR}
 
   nuxt_app:
     container_name: nuxt_app_planning_poker_prod
@@ -21,7 +19,23 @@ services:
     networks:
       - traefik_default
 
+  redis:
+    container_name: redis_db_prod
+    image: "redis:alpine"
+    volumes:
+      - redis-data:/data
+    networks:
+      - traefik_default
+    restart: always
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+
 networks:
   traefik_default:
     external: true
-      
+
+volumes:
+  redis-data:
+    driver: local
+
