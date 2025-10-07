@@ -4,8 +4,6 @@ services:
     build:
       context: .
       dockerfile: .docker/Dockerfile.Api.Prod
-    networks:
-      - traefik_default
     restart: always
     environment:
       - REDIS_ADDR= ${REDIS_ADDR}
@@ -16,26 +14,3 @@ services:
       context: .
       dockerfile: .docker/Dockerfile.Frontend.Prod
     restart: always
-    networks:
-      - traefik_default
-
-  redis:
-    container_name: redis_db_prod
-    image: "redis:alpine"
-    volumes:
-      - redis-data:/data
-    networks:
-      - traefik_default
-    restart: always
-    environment:
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
-
-networks:
-  traefik_default:
-    external: true
-
-volumes:
-  redis-data:
-    driver: local
-
