@@ -8,7 +8,7 @@ services:
       - traefik_default
     restart: always
     environment:
-      - REDIS_ADDR=host.docker.internal:32768
+      - REDIS_ADDR=${REDIS_ADDR}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.api.rule=Host(`planning-poker.mdutra.dev`) && PathPrefix(`/v1`)"
